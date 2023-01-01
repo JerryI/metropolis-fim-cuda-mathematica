@@ -247,8 +247,6 @@ inline void calcCr(blaze::DynamicVector<float, blaze::rowVector> total, float4* 
 }
 
 void round() {
-    //random generator
-    std::uniform_int_distribution<std::mt19937::result_type> random_sampler(0, NS-1); 
     //accumulator for the calcualted fields
     blaze::DynamicMatrix<float> partialField(PARTIAL_SIZE, 4);
     float* partialField_storage = (float*)partialField.data();
@@ -304,11 +302,12 @@ void endless() {
     CUDAinit();
     testEigen();
 
-    std::cout << "------------parameters------------" << "\n";
+    std::cout << "-----------------parameters-----------------" << "\n";
     std::cout << "Jxx = " << jxx << "; Jyy = " << jyy << "; Jxy = " << jxy << "; D = " << dip << "\n";
-    std::cout << "----------------------------------" << "\n\n";
+    std::cout << "--------------------------------------------" << "\n\n";
 
-    
+    std::uniform_int_distribution<std::mt19937::result_type> random_sampler(0, NS-1);
+
 
     std::chrono::steady_clock::time_point beginGlobal = std::chrono::steady_clock::now();
 
@@ -320,6 +319,8 @@ void endless() {
         std::cout << "Cycle: " << cycle << "\n";
 
         std::chrono::steady_clock::time_point time = std::chrono::steady_clock::now();
+
+        for (int i=0; i<SAMPLES; ++i) samples[i] = random_sampler(rng);
 
         round();
 
@@ -353,6 +354,7 @@ void endless() {
     long cycle = cycles;
 
     while(true) {
+        for (int i=0; i<SAMPLES; ++i) samples[i] = random_sampler(rng);
         round();
         cudaMemcpy(spino, d_spin, sizeof(float) * NS * STATE_SIZE, cudaMemcpyDeviceToHost);
         makesnapshot(dirname, cycle);
