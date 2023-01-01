@@ -67,6 +67,8 @@ Export[dirname<>"/sz_a.bin", {Re[#], Im[#]}&/@(Sz//Flatten)//Flatten//Evaluate, 
 Export[dirname<>"/init.bin", spino//Flatten, "Real32"];
 Export[dirname<>"/coordinates.bin", poso//Flatten, "Real32"];
 
+Export[dirname<>"/cmd.txt", StringJoin[Riffle[$ScriptCommandLine, " "]], "String"];
+
 NS = spino//Length;
 PT = Ceiling[NS/1024//N];
 
