@@ -30,6 +30,8 @@ hitemp = 200;
 lotemp = 10;
 cycles = 200;
 
+maxcycles = 1000;
+
 width = 300;
 height = 300;
 df = 7.0;
@@ -72,4 +74,4 @@ Export[dirname<>"/cmd.txt", StringJoin[Riffle[$ScriptCommandLine, " "]], "String
 NS = spino//Length;
 PT = Ceiling[NS/1024//N];
 
-Run[StringTemplate["nohup ./sim `` `` `` `` `` `` `` `` `` `` `` `` `` `` `` > ``/logs.txt &"][dirname, NS, PT, dip, jxx, jyy, jxy, tresh, hitemp, lotemp, cycles, width, height, df, att, dirname]];
+Run[StringTemplate["nohup ./sim `` `` `` `` `` `` `` `` `` `` `` `` `` `` `` `` > ``/logs.txt &"][dirname, NS, PT, dip, jxx, jyy, jxy, tresh, hitemp, lotemp, cycles, width, height, df, att, maxcycles, dirname]];

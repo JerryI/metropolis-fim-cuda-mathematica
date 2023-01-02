@@ -20,6 +20,8 @@ float dip, jxx, jyy, jxy, tresh, hitemp, lotemp;
 int cycles, width, height, df;
 float att;
 
+long max_allowed_cycles = 1000;
+
 #define STATE_SIZE 4
 #define PROP_SIZE 4
 
@@ -361,7 +363,11 @@ void endless() {
         drawpicture((dirname + "/snapshots/cycle_" + std::to_string(cycle) + ".bmp").c_str(), width, height, df, att, poso, spino);
         calcMagnetization();   
         cycle++;     
+
+        if (cycle > max_allowed_cycles) break;
     }        
+
+    std::cout << "terminated.";
 
     //neve be reached
 
@@ -389,6 +395,7 @@ int main(int argc, char** argv)
     df     =   std::stoi(argv[14]);
 
     att    =   std::stof(argv[15]);
+    max_allowed_cycles = std::stoi(argv[16]);
 
     readfiles(dirname);
 
