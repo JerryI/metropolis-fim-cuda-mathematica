@@ -58,10 +58,10 @@ __global__ void calcMag(
 	const unsigned long length
 )
 
-#define PERS "double"
+#define PERS "float"
 
 {
-    __shared__ double4 localSums[1024];
+    __shared__ float4 localSums[1024];
 
     unsigned int tid = getLocalId();
     unsigned int bid = getGroupId();
@@ -121,7 +121,7 @@ __global__ void calcFields(
 )
 
 {
-    __shared__ double4 localSums[1024];
+    __shared__ float4 localSums[1024];
 
     unsigned int tid = getLocalId();
     unsigned int bid = getGroupId();
@@ -141,23 +141,23 @@ __global__ void calcFields(
         
     float4 r = privatepos - nextPos;
 
-    double distSqr = (r.x * r.x)  +  (r.y * r.y)  +  (r.z * r.z);
+    float distSqr = (r.x * r.x)  +  (r.y * r.y)  +  (r.z * r.z);
 
     if (distSqr < 0.1f) {
         localSums[tid].x = 0;
         localSums[tid].y = 0;
         localSums[tid].z = 0;
     } else {
-        double invDist = rsqrtf(distSqr);
-        double invDistCube = invDist * (double)DIP * invDist * invDist;  
-        double invDistPenta = invDistCube * invDist * invDist;
-        double4 privatefield; 
+        float invDist = rsqrtf(distSqr);
+        float invDistCube = invDist * DIP * invDist * invDist;  
+        float invDistPenta = invDistCube * invDist * invDist;
+        float4 privatefield; 
         float4 privatespin = spin[gid];
  
 
-        privatefield.x = (double)privatespin.x * (invDistCube - 3 * invDistPenta * r.x * r.x) - (double)privatespin.y * 3 * invDistPenta * r.x * r.y - (double)privatespin.z * 3 * invDistPenta * r.x * r.z; 
-        privatefield.y = (double)privatespin.y * (invDistCube - 3 * invDistPenta * r.y * r.y) - (double)privatespin.z * 3 * invDistPenta * r.y * r.z - (double)privatespin.x * 3 * invDistPenta * r.y * r.x; 
-        privatefield.z = (double)privatespin.z * (invDistCube - 3 * invDistPenta * r.z * r.z) - (double)privatespin.x * 3 * invDistPenta * r.z * r.x - (double)privatespin.y * 3 * invDistPenta * r.z * r.y; 
+        privatefield.x = privatespin.x * (invDistCube - 3 * invDistPenta * r.x * r.x) - privatespin.y * 3 * invDistPenta * r.x * r.y - privatespin.z * 3 * invDistPenta * r.x * r.z; 
+        privatefield.y = privatespin.y * (invDistCube - 3 * invDistPenta * r.y * r.y) - privatespin.z * 3 * invDistPenta * r.y * r.z - privatespin.x * 3 * invDistPenta * r.y * r.x; 
+        privatefield.z = privatespin.z * (invDistCube - 3 * invDistPenta * r.z * r.z) - privatespin.x * 3 * invDistPenta * r.z * r.x - privatespin.y * 3 * invDistPenta * r.z * r.y; 
 
         
 
@@ -171,9 +171,9 @@ __global__ void calcFields(
                 J = Jxx;
             }                
 
-            privatefield.x = privatefield.x + (double)(privatespin.x * J);
-            privatefield.y = privatefield.y + (double)(privatespin.y * J);
-            privatefield.z = privatefield.z + (double)(privatespin.z * J);
+            privatefield.x = privatefield.x + privatespin.x * J;
+            privatefield.y = privatefield.y + privatespin.y * J;
+            privatefield.z = privatefield.z + privatespin.z * J;
         }
 
         localSums[tid] = privatefield;
@@ -200,9 +200,7 @@ __global__ void calcFields(
     __syncthreads();
     // Write result into partialSums[nWorkGroups]
     if (tid == 0) {
-        partialField[bid].x = localSums[0].x;
-        partialField[bid].y = localSums[0].y;
-        partialField[bid].z = localSums[0].z;
+        partialField[bid] = localSums[0];
     }
 
     if (gid == 0) {

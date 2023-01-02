@@ -28,7 +28,13 @@ long max_allowed_cycles = 1000;
 #define SAMPLES 1000000
 
 #include "includes/bmpdrawer.h"
-#include "includes/cuda.h"
+
+#ifdef DOUBLEP
+    #include "includes/cuda.h"
+#else
+    #include "includes/cudaf.h"
+#endif
+
 
 blaze::HermitianMatrix< blaze::StaticMatrix<std::complex<float>,10UL, 10UL> > constA;
 blaze::HermitianMatrix< blaze::StaticMatrix<std::complex<float>,10UL, 10UL> > SxA;
@@ -303,6 +309,10 @@ void calcMagnetization() {
 void endless() {
     CUDAinit();
     testEigen();
+
+    #ifdef DOUBLEP
+        std::cout << "DOUBLE mode is enabled!!! \n";
+    #endif
 
     std::cout << "-----------------parameters-----------------" << "\n";
     std::cout << "Jxx = " << jxx << "; Jyy = " << jyy << "; Jxy = " << jxy << "; D = " << dip << "\n";
