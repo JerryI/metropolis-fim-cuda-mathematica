@@ -148,7 +148,7 @@ void drawpicture(const char* path, int width, int height, int DF, float RADIUS, 
     unsigned long number = 0; 
 
     for(unsigned long i=0; i<NS; ++i) {
-        if (( abs(poso[(i * 4) + 2] - 0.0f) < 0.1f ) && ( poso[(i * 4) + 3] > 0.0f ) ) {
+        if (( abs(poso[(i * 4) + 2] - 0.0f) < 2.0f ) && ( poso[(i * 4) + 3] > 0.0f ) ) {
             indexes[number] = i;
             ++number;
         }
