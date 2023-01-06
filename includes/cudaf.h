@@ -55,7 +55,7 @@ __device__ int getLocalSize() {
 __global__ void calcMag(
     float4* spin,
     float4* partialField,
-	const unsigned long length
+	const int length
 )
 
 #define PERS "float"
@@ -115,9 +115,9 @@ __global__ void calcFields(
 
     float4* partialField,
 
-    const unsigned long next,
-    const unsigned long prev,
-	const unsigned long length
+    const int next,
+    const int prev,
+	const int length
 )
 
 {
@@ -165,11 +165,11 @@ __global__ void calcFields(
 
             float J = Jxy;
 
-            if (privatepos.w > 0.0f && nextPos.w > 0.0f) {
-                J = Jyy;
-            } else if (privatepos.w < 0.0f && nextPos.w < 0.0f) {
-                J = Jxx;
-            }                
+            //if (privatepos.w > 0.0f && nextPos.w > 0.0f) {
+            //    J = Jyy;
+            //} else if (privatepos.w < 0.0f && nextPos.w < 0.0f) {
+            //    J = Jxx;
+            //}                
 
             privatefield.x = privatefield.x + privatespin.x * J;
             privatefield.y = privatefield.y + privatespin.y * J;

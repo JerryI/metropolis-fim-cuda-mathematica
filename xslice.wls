@@ -3,7 +3,7 @@
 x2da[z_:2] := (
     Graphics[{Arrowheads[
          0.02], ({RGBColor[
-             Round[Abs@Normalize@Re@Take[spino[[#[[1]]]], 3], 0.5]], 
+             Round[Abs@Normalize@Re@Take[spino[[#[[1]]]], 3], 0.0001]], 
             Arrow[{#[[2]][[
                1 ;; 2]], (#[[2]] + 1.2 Re@spino[[#[[1]]]])[[
                1 ;; 2]]}]} & /@ 
@@ -50,6 +50,15 @@ Do[ToExpression[argv[[i]]], {i, 2, argc}];
 
 dirname = "projects/"<>argv[[1]];
 
+If[!DirectoryQ[dirname],
+    dirname = "tests/"<>argv[[1]];
+];
+
+If[!DirectoryQ[dirname],
+    Print["doesnt exist"];
+    Exit[-1];
+];
+
 CreateDirectory[dirname<>"/xslice"];
 
 If[cycle === Last[],
@@ -59,5 +68,5 @@ If[cycle === Last[],
 spino = Partition[Import[dirname<>"/snapshots/cycle_"<>ToString[cycle]<>".bin",  "Real32"],4];
 poso = Partition[Import[dirname<>"/coordinates.bin", "Real32"], 4];
 
-Export[dirname<>"/xslice/"<>ToString[fun]<>"-"<>ToString[z//Round]<>"-"<>StringTake[CreateUUID[],3]<>"."<>ext, Show[fun[z], ImageSize->width]];
+Export[dirname<>"/xslice/"<>ToString[fun]<>"-"<>ToString[cycle]<>"-z"<>ToString[z//Round]<>"-"<>StringTake[CreateUUID[],3]<>"."<>ext, Show[fun[z], ImageSize->width]];
 

@@ -2,39 +2,25 @@
 Import /@ {"model/cell.mx", "model/mat.mx"};
 
 BuildCell[Lx_, Ly_, Lz_] := (
-    centeredcell = Select[centeredcell, #[[1]]!=1&];
-    supercell = {#[[1]] // Round, #[[2 ;; 4]]} & /@ Partition[Table[(({
-         {1, 0, 0, 0, 0},
-         {0, 1, 0, 0, x (9.99816)},
-         {0, 0, 1, 0, y (9.99816)},
-         {0, 0, 0, 1, z (9.99816)},
-         {0, 0, 0, 0, 1}
-        })) . i, {i, centeredcell}, {x, -Lx, Lx}, {y, -Ly, Ly}, {z, -Lz, Lz}] // Flatten, 5];
-      
-    newsupercell = supercell;    
-    lostspins = {Length[supercell]-Length[newsupercell], Length[supercell]};
-    supercell = newsupercell;
+    supercell = Partition[Table[{x,y,z}, {x, -Lx, Lx}, {y, -Ly, Ly}, {z, -Lz, Lz}] // Flatten, 3];  
 
     If[sphere != 0,
-        center = Mean@(supercell[[All,2]]);
+        center = Mean@(supercell);
         Print["center: "<>ToString[center]];
-        supercell = {#[[1]], #[[2]]-center}&/@supercell;
+        supercell = {#-center}&/@supercell;
 
-        radius = Max[MaximalBy[supercell[[All,2]], First]//First//First, MaximalBy[supercell[[All,2]], Last]//First//Last];
+        radius = Max[MaximalBy[supercell[[All]], First]//First//First, MaximalBy[supercell[[All]], Last]//First//Last];
         Print["radius: "<>ToString[radius]];
 
-        supercell = If[Norm[#[[2]]]<radius, {#[[1]],#[[2]]}, Missing[]]&/@supercell;
+        supercell = If[Norm[#]<radius, #, Missing[]]&/@supercell;
         supercell = supercell//DeleteMissing;
     ];
 
-    Clear[newsupercell];
-    StringTemplate["We lost `` out of ``"]@@lostspins//logWrite
 );
 
 PrepareSpins := (
-    poso = Join[#[[2]], {If[#[[1]] == 2, -1.0, 1.0]}] & /@ supercell;
-    spino = Join[Normalize@RandomReal[{-1, 1}, 3], {0}] & /@ supercell;
-    
+    poso = Join[#, {1.0}] & /@ supercell;
+    spino = Join[Normalize@RandomReal[{-1, 1}, 3], {0}] & /@ supercell;   
 );
 
 eta = 0.06483931947069943`; lambda = -70.`; rhos = 0.18`; v = 50.0; delta = 2300.`; mu = 0.47`; g = 2.029;
@@ -72,7 +58,7 @@ PrepareSpins;
 
 
 
-dirname = "projects/"<>argv[[1]]<>"-"<>ToString[comm];
+dirname = "tests/"<>argv[[1]]<>"-"<>ToString[comm];
 CreateDirectory[dirname];
 CreateDirectory[dirname<>"/snapshots"];
 
@@ -91,4 +77,4 @@ Export[dirname<>"/cmd.txt", StringJoin[Riffle[$ScriptCommandLine, " "]], "String
 NS = spino//Length;
 PT = Ceiling[NS/1024//N];
 
-Run[StringTemplate["nohup ./sim `` `` `` `` `` `` `` `` `` `` `` `` `` `` `` `` > ``/logs.txt &"][dirname, NS, PT, dip, jxx, jyy, jxy, tresh, hitemp, lotemp, cycles, width, height, df, att, maxcycles, dirname]];
+Print[StringTemplate["nohup ./sim `` `` `` `` `` `` `` `` `` `` `` `` `` `` `` `` > ``/logs.txt &"][dirname, NS, PT, dip, jxx, jyy, jxy, tresh, hitemp, lotemp, cycles, width, height, df, att, maxcycles, dirname]];

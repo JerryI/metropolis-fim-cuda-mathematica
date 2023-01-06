@@ -144,11 +144,11 @@ void write_bmp(const char *path, const uint width, const uint height, const uint
 }
 
 void drawpicture(const char* path, int width, int height, int DF, float RADIUS, float* poso, float* spino) {
-    unsigned long* indexes = new unsigned long[NS];
-    unsigned long number = 0; 
+    int* indexes = new int[NS];
+    int number = 0; 
 
-    for(unsigned long i=0; i<NS; ++i) {
-        if (( abs(poso[(i * 4) + 2] - 0.0f) < 2.0f ) && ( poso[(i * 4) + 3] > 0.0f ) ) {
+    for(int i=0; i<NS; ++i) {
+        if (( abs(poso[(i * 4) + 2] - 0.0f) < 1.0f ) && ( poso[(i * 4) + 3] > 0.0f ) ) {
             indexes[number] = i;
             ++number;
         }
@@ -161,7 +161,7 @@ void drawpicture(const char* path, int width, int height, int DF, float RADIUS, 
     float maxpy = -99999.0;
     float minpy =  99999.9;    
 
-    for (unsigned long i=0; i<number; ++i) {
+    for (int i=0; i<number; ++i) {
         if (poso[(indexes[i] << 2)] > maxpx) maxpx = poso[(indexes[i] << 2)];
         if (poso[(indexes[i] << 2)] < minpx) minpx = poso[(indexes[i] << 2)];
         if (poso[(indexes[i] << 2) + 1] > maxpy) maxpy = poso[(indexes[i] << 2) + 1];
@@ -180,7 +180,7 @@ void drawpicture(const char* path, int width, int height, int DF, float RADIUS, 
     float angle;
     hsv pix; pix.s = 1.0; pix.v = 1.0;
 
-    unsigned long index = 0;
+    int index = 0;
     rgb npix;
 
     int ux, uy;
@@ -190,7 +190,7 @@ void drawpicture(const char* path, int width, int height, int DF, float RADIUS, 
 
     float ax, ay;
 
-    for (unsigned long i=0; i<number; ++i) {
+    for (int i=0; i<number; ++i) {
         index = indexes[i];
         pix.h = (180.0f/3.14159f)*atan2f(spino[(index << 2) + 1], spino[(index << 2)]);
 

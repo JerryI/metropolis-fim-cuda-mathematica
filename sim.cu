@@ -11,8 +11,12 @@ using blaze::unpadded;
 using blaze::rowMajor;
 using blaze::columnMajor;
 
+#include<limits.h>
+
+
+
 std::string dirname;
-unsigned long NS;
+int NS;
 int PARTIAL_SIZE;
 
 float dip, jxx, jyy, jxy, tresh, hitemp, lotemp;
@@ -78,6 +82,37 @@ inline void cuCheck(cudaError_t code){
     }
 }
 
+void DisplayHeader()
+{
+    const int kb = 1024;
+    const int mb = kb * kb;
+    std::cout << "NBody.GPU" << std::endl << "=========" << std::endl << std::endl;
+
+    std::cout << "CUDA version:   v" << CUDART_VERSION << std::endl;    
+    //std::cout << "Thrust version: v" << THRUST_MAJOR_VERSION << "." << THRUST_MINOR_VERSION << std::endl << std::endl; 
+
+    int devCount;
+    cudaGetDeviceCount(&devCount);
+    std::cout << "CUDA Devices: " << std::endl << std::endl;
+
+    for(int i = 0; i < devCount; ++i)
+    {
+        cudaDeviceProp props;
+        cudaGetDeviceProperties(&props, i);
+        std::cout << i << ": " << props.name << ": " << props.major << "." << props.minor << std::endl;
+        std::cout << "  Global memory:   " << props.totalGlobalMem / mb << "mb" << std::endl;
+        std::cout << "  Shared memory:   " << props.sharedMemPerBlock / kb << "kb" << std::endl;
+        std::cout << "  Constant memory: " << props.totalConstMem / kb << "kb" << std::endl;
+        std::cout << "  Block registers: " << props.regsPerBlock << std::endl << std::endl;
+
+        std::cout << "  Warp size:         " << props.warpSize << std::endl;
+        std::cout << "  Threads per block: " << props.maxThreadsPerBlock << std::endl;
+        std::cout << "  Max block dimensions: [ " << props.maxThreadsDim[0] << ", " << props.maxThreadsDim[1]  << ", " << props.maxThreadsDim[2] << " ]" << std::endl;
+        std::cout << "  Max grid dimensions:  [ " << props.maxGridSize[0] << ", " << props.maxGridSize[1]  << ", " << props.maxGridSize[2] << " ]" << std::endl;
+        std::cout << std::endl;
+    }
+}
+
 std::random_device dev;
 std::mt19937 rng(dev());
 
@@ -92,6 +127,8 @@ int randomChoice(double *choice_weight, int num_choices) {
         sum_of_weight += choice_weight[i];
     }
     rnd = ((double)dis(rng))*sum_of_weight;
+    //rnd = sum_of_weight*(double)rand()/(double)(RAND_MAX);
+
     for(int i=0; i<num_choices; i++) {
         if(rnd < choice_weight[i])
             return i;
@@ -109,8 +146,8 @@ int randomChoice(double *choice_weight, int num_choices) {
 float* d_spin, *d_pos, *d_partial;
 
 float temperature; 
-unsigned long nextSpin = 1;
-unsigned long prevSpin = 1;
+int nextSpin = 1;
+int prevSpin = 1;
 float invTemp;
 
 void CUDAinit() {
@@ -120,6 +157,7 @@ void CUDAinit() {
 
     cudaMemcpy((void*)d_spin, (void*)spino, sizeof(float) * NS * STATE_SIZE, cudaMemcpyHostToDevice);
     cudaMemcpy((void*)d_pos, (void*)poso, sizeof(float) * NS * PROP_SIZE, cudaMemcpyHostToDevice);
+    cudaDeviceSynchronize();
 }
 
 void CUDAterm() {
@@ -136,20 +174,20 @@ void testRng() {
 void testNeib() {
     std::cout << "counting neibours\n";
 
-    unsigned long *atlas = new unsigned long[28];
+    int *atlas = new int[28];
     for (int i =0; i<28; ++i) {
         atlas[i] = 0;
     }
 
     float4 delta;
     float snorm;
-    unsigned long cnt;
+    int cnt;
     float4 *initpos = (float4*)poso;
     float4 *ppos = (float4*)poso; 
-    for (unsigned long j=0; j<NS; ++j) {
+    for (int j=0; j<NS; ++j) {
         cnt=0;
         ppos = (float4*)poso; 
-        for (unsigned long i=0; i<NS; ++i) {
+        for (int i=0; i<NS; ++i) {
             delta = (*ppos) - (*initpos);
             snorm = (delta.x*delta.x + delta.y*delta.y +delta.z*delta.z);
             if (snorm < tresh && snorm > 0.1f) ++cnt;
@@ -160,7 +198,7 @@ void testNeib() {
         ++initpos;
     }
 
-    unsigned long cntmax = 0;
+    int cntmax = 0;
     for (int i=0; i<28; ++i)
         if (atlas[i] > cntmax) cntmax = atlas[i];
 
@@ -208,7 +246,7 @@ void testEigen() {
     std::cout << "\n";
 }
 
-unsigned long samples[SAMPLES];
+int samples[SAMPLES];
 
 //blaze::StaticVector<float, 4UL> newSpin;
 blaze::StaticVector<float, 4UL> energiesB = {3.0/2.0, 1.0/2.0, -1.0/2.0, -3.0/2.0};
@@ -232,26 +270,25 @@ inline void calcFe(blaze::DynamicVector<float, blaze::rowVector> total, float4* 
     spin->z = (st * (SzA * ctrans(st) )).real();
 }
 
-blaze::StaticVector<float, 3UL> sv1;
-blaze::StaticVector<double, 4UL> boltzmanB;
-double normsv;
+//blaze::StaticVector<float, 3UL> sv1;
+//blaze::StaticVector<double, 4UL> boltzmanB;
+//float normsv;
 
-inline void calcCr(blaze::DynamicVector<float, blaze::rowVector> total, float4* spin) {
-    sv1[0] = total[0];
-    sv1[1] = total[1];
-    sv1[2] = total[2]; 
+void calcCr(blaze::DynamicVector<float, blaze::rowVector> total, float4* spin) {
+    auto normsv = sqrtf(total[0]*total[0]+total[1]*total[1]+total[2]*total[2]);
 
-    normsv = sqrtf(sv1[0]*sv1[0]+sv1[1]*sv1[1]+sv1[2]*sv1[2]);
-    sv1 = sv1 / normsv;
+    blaze::StaticVector<double, 4UL> boltzman = - energiesB * normsv * invTemp;
+    boltzman = exp(boltzman);
 
-    boltzmanB = - energiesB * normsv * invTemp;
-    boltzmanB = exp(boltzmanB);
+    total = total / normsv;
 
-    normsv = energiesB[randomChoice((double*)boltzmanB.data(), 4)];
+    normsv = energiesB[randomChoice((double*)boltzman.data(), 4)];
 
-    spin->x = sv1[0]*normsv;
-    spin->y = sv1[1]*normsv;
-    spin->z = sv1[2]*normsv;    
+    total = total * normsv;
+
+    spin->x = total[0];
+    spin->y = total[1];
+    spin->z = total[2];    
 }
 
 void round() {
@@ -267,21 +304,20 @@ void round() {
 
     
 
-    for (unsigned long k=0; k<SAMPLES; ++k) {
+    for (int k=0; k<SAMPLES; ++k) {
         nextSpin = samples[k];
 
         calcFields<<<PARTIAL_SIZE, 1024>>>((float4*)d_spin, (float4*)d_pos, newSpin_storage, jxx, jyy, jxy, dip, tresh, (float4*)d_partial, nextSpin, prevSpin, NS);
         cudaMemcpy((void*)partialField_storage, (void*)d_partial, sizeof(float) * 4 * PARTIAL_SIZE, cudaMemcpyDeviceToHost);
-
         //for(int i=0; i<PARTIAL_SIZE; ++i) {
         //    std::cout << "v1: " << partialField_storage[4*i] << ", v2: " << partialField_storage[4*i+1] << ", v3: " << partialField_storage[4*i+2] << ", v4: " << partialField_storage[4*i+3] << "\n";
         //}
 
      
 
-        if (partialField_storage[3] < 0.0f)
-            calcFe(blaze::sum<blaze::columnwise>(partialField), &newSpin_storage);
-        else
+        //if (partialField_storage[3] < 0.0f)
+        //    calcFe(blaze::sum<blaze::columnwise>(partialField), &newSpin_storage);
+        //else
             calcCr(blaze::sum<blaze::columnwise>(partialField), &newSpin_storage);
 
         prevSpin = samples[k];
@@ -307,6 +343,8 @@ void calcMagnetization() {
 }
 
 void endless() {
+    DisplayHeader();
+
     CUDAinit();
     testEigen();
 
