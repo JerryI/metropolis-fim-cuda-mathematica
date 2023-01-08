@@ -3,6 +3,8 @@
 #include <blaze/Blaze.h>
 #include <blaze/Forward.h>
 
+
+
 #include <chrono>
 #include <random>
 
@@ -13,11 +15,13 @@ using blaze::columnMajor;
 
 #include <limits.h>
 
-#define THREADS 512
+#define THREADS 1024
 
 std::string dirname;
 int NS;
 int PARTIAL_SIZE;
+
+using T = float4;
 
 float dip, jxx, jyy, jxy, tresh, hitemp, lotemp;
 
@@ -33,11 +37,8 @@ long max_allowed_cycles = 1000;
 
 #include "includes/bmpdrawer.h"
 
-#ifdef DOUBLEP
-    #include "includes/cuda.h"
-#else
-    #include "includes/cudaf.h"
-#endif
+#include "includes/cudaf.h"
+#include "includes/gpu_reduce.hpp"
 
 
 blaze::HermitianMatrix< blaze::StaticMatrix<std::complex<float>,10UL, 10UL> > constA;
@@ -143,7 +144,7 @@ int randomChoice(double *choice_weight, int num_choices) {
     std::exit(-1);
 }
 
-float* d_spin, *d_pos, *d_partial;
+float4* d_spin, *d_pos, *d_partial;
 
 float temperature; 
 int nextSpin = 1;
@@ -273,61 +274,109 @@ inline void calcFe(blaze::DynamicVector<float, blaze::rowVector> total, float4* 
 //blaze::StaticVector<float, 3UL> sv1;
 //blaze::StaticVector<double, 4UL> boltzmanB;
 //float normsv;
+blaze::StaticVector<float, 3UL> tot;
 
-void calcCr(blaze::DynamicVector<float, blaze::rowVector> total, float4* spin) {
-    auto normsv = sqrtf(total[0]*total[0]+total[1]*total[1]+total[2]*total[2]);
+inline void calcCr(float4* spin) {
+    //std::cout << tot[0] << "; " << tot[1] << "; " << tot[2] << "\n";
+
+    auto normsv = sqrtf(tot[0]*tot[0]+tot[1]*tot[1]+tot[2]*tot[2]);
+
+    //std::cout << normsv << "\n";
 
     blaze::StaticVector<double, 4UL> boltzman = - energiesB * normsv * invTemp;
     boltzman = exp(boltzman);
 
-    total = total / normsv;
+    tot = tot / normsv;
 
     normsv = energiesB[randomChoice((double*)boltzman.data(), 4)];
 
-    total = total * normsv;
+    tot = tot * normsv;
 
-    spin->x = total[0];
-    spin->y = total[1];
-    spin->z = total[2];    
+    spin->x = tot[0];
+    spin->y = tot[1];
+    spin->z = tot[2];    
 }
 
 void round() {
-    //accumulator for the calcualted fields
-    blaze::DynamicMatrix<float> partialField(PARTIAL_SIZE, 4);
-    float* partialField_storage = (float*)partialField.data();
-
     float4 newSpin_storage;
 
     newSpin_storage.x = 0.0;
     newSpin_storage.y = 0.0;
     newSpin_storage.z = 0.0;
 
-    
+    size_t n = NS;
+    size_t blocksPerGrid = std::ceil((1.*n) / THREADS);
+
+    T* tmp;
+    T* from;
+
+    cudaMalloc(&tmp, sizeof(T) * blocksPerGrid); 
+    checkCUDAError("Error allocating tmp [GPUReduction]");
 
     for (int k=0; k<SAMPLES; ++k) {
         nextSpin = samples[k];
 
-        calcFields<<<PARTIAL_SIZE, THREADS>>>((float4*)d_spin, (float4*)d_pos, newSpin_storage, jxx, jyy, jxy, dip, tresh, (float4*)d_partial, nextSpin, prevSpin, NS);
-        cudaMemcpy((void*)partialField_storage, (void*)d_partial, sizeof(float) * 4 * PARTIAL_SIZE, cudaMemcpyDeviceToHost);
-        //for(int i=0; i<PARTIAL_SIZE; ++i) {
-        //    std::cout << "v1: " << partialField_storage[4*i] << ", v2: " << partialField_storage[4*i+1] << ", v3: " << partialField_storage[4*i+2] << ", v4: " << partialField_storage[4*i+3] << "\n";
-        //}
+        n = NS;
+        blocksPerGrid   = std::ceil((1.*n) / THREADS);
 
-     
+        /*
+            std::cout << "number: " << n << "\n";
+            std::cout << "blokcs: " << blocksPerGrid << "\n";
+        */
 
-        //if (partialField_storage[3] < 0.0f)
-        //    calcFe(blaze::sum<blaze::columnwise>(partialField), &newSpin_storage);
-        //else
-            calcCr(blaze::sum<blaze::columnwise>(partialField), &newSpin_storage);
 
-        prevSpin = samples[k];
-     
-    }
+        reduceCUDAPopulate<THREADS><<<blocksPerGrid, THREADS>>>(d_spin, d_pos, newSpin_storage, jxx, jyy, jxy, dip, tresh, tmp, nextSpin, prevSpin, n);
+        from = tmp;
+        n = blocksPerGrid;
 
-   
+        cudaDeviceSynchronize();
+
+        /*
+            float* buf = new float[blocksPerGrid * 4];
     
+            std::cout << "number: " << n << "\n";
+            cudaMemcpy(buf, tmp, sizeof(T), cudaMemcpyDeviceToHost); checkCUDAError("Error copying result [GPUReduction]");
 
+            std::cout << "******---\n";
+            for(int i=0; i<blocksPerGrid; ++i) {
+                std::cout << buf[i*4] << "; " << buf[i*4 + 1] << "; " << buf[i*4 + 2] << "; " << buf[i*4 + 3] << "; ";
+                std::cout << "\n";
+            }
+        */
 
+        do
+        {
+            blocksPerGrid   = std::ceil((1.*n) / THREADS);
+            reduceCUDA<THREADS><<<blocksPerGrid, THREADS>>>(from, tmp, n);
+            from = tmp;
+            n = blocksPerGrid;
+        } while (n > THREADS);
+
+        if (n > 1)
+            reduceCUDA<THREADS><<<1, THREADS>>>(tmp, tmp, n);
+
+        /*
+            std::cout << "number: " << n << "\n";
+            cudaMemcpy(buf, tmp, sizeof(T), cudaMemcpyDeviceToHost); checkCUDAError("Error copying result [GPUReduction]");
+
+            std::cout << "******---\n";
+            for(int i=0; i<blocksPerGrid; ++i) {
+                std::cout << buf[i*4] << "; " << buf[i*4 + 1] << "; " << buf[i*4 + 2] << "; " << buf[i*4 + 3] << "; ";
+                std::cout << "\n";
+            }
+        */
+
+        //cudaDeviceSynchronize();
+        //checkCUDAError("Error launching kernel [GPUReduction]");
+
+        cudaMemcpy(tot.data(), tmp, sizeof(float)*3, cudaMemcpyDeviceToHost); 
+        //checkCUDAError("Error copying result [GPUReduction]");
+    
+        calcCr(&newSpin_storage);
+        prevSpin = samples[k];
+    
+    }
+    cudaFree(tmp);
 }
 
 void calcMagnetization() {
@@ -424,6 +473,8 @@ void endless() {
 
 int main(int argc, char** argv)
 {
+    
+
     dirname = argv[1];
 
     NS =    std::stoul(argv[2]);

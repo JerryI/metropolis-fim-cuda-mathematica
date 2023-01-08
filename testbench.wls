@@ -16,6 +16,11 @@ BuildCell[Lx_, Ly_, Lz_] := (
         supercell = supercell//DeleteMissing;
     ];
 
+    originalLength = Length[supercell];
+    
+    supercell = Take[supercell, 2^(Log2[originalLength]//N//Floor)];
+    Print[StringTemplate["Corrected length `` out of ``"][Length[supercell], originalLength]];
+
 );
 
 PrepareSpins := (
@@ -75,6 +80,6 @@ Export[dirname<>"/coordinates.bin", poso//Flatten, "Real32"];
 Export[dirname<>"/cmd.txt", StringJoin[Riffle[$ScriptCommandLine, " "]], "String"];
 
 NS = spino//Length;
-PT = Ceiling[NS/512//N];
+PT = Ceiling[NS/1024//N];
 
-Run[StringTemplate["nohup ./sim `` `` `` `` `` `` `` `` `` `` `` `` `` `` `` `` > ``/logs.txt &"][dirname, NS, PT, dip, jxx, jyy, jxy, tresh, hitemp, lotemp, cycles, width, height, df, att, maxcycles, dirname]];
+Print[StringTemplate["nohup ./sim `` `` `` `` `` `` `` `` `` `` `` `` `` `` `` `` > ``/logs.txt &"][dirname, NS, PT, dip, jxx, jyy, jxy, tresh, hitemp, lotemp, cycles, width, height, df, att, maxcycles, dirname]];
