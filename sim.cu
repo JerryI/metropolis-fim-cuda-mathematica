@@ -15,7 +15,7 @@ using blaze::columnMajor;
 
 #include <limits.h>
 
-#define THREADS 1024
+#define THREADS 256
 
 std::string dirname;
 int NS;
@@ -329,7 +329,7 @@ void round() {
         from = tmp;
         n = blocksPerGrid;
 
-        cudaDeviceSynchronize();
+        //cudaDeviceSynchronize();
 
         /*
             float* buf = new float[blocksPerGrid * 4];
