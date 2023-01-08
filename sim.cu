@@ -11,9 +11,9 @@ using blaze::unpadded;
 using blaze::rowMajor;
 using blaze::columnMajor;
 
-#include<limits.h>
+#include <limits.h>
 
-
+#define THREADS 512
 
 std::string dirname;
 int NS;
@@ -307,7 +307,7 @@ void round() {
     for (int k=0; k<SAMPLES; ++k) {
         nextSpin = samples[k];
 
-        calcFields<<<PARTIAL_SIZE, 1024>>>((float4*)d_spin, (float4*)d_pos, newSpin_storage, jxx, jyy, jxy, dip, tresh, (float4*)d_partial, nextSpin, prevSpin, NS);
+        calcFields<<<PARTIAL_SIZE, THREADS>>>((float4*)d_spin, (float4*)d_pos, newSpin_storage, jxx, jyy, jxy, dip, tresh, (float4*)d_partial, nextSpin, prevSpin, NS);
         cudaMemcpy((void*)partialField_storage, (void*)d_partial, sizeof(float) * 4 * PARTIAL_SIZE, cudaMemcpyDeviceToHost);
         //for(int i=0; i<PARTIAL_SIZE; ++i) {
         //    std::cout << "v1: " << partialField_storage[4*i] << ", v2: " << partialField_storage[4*i+1] << ", v3: " << partialField_storage[4*i+2] << ", v4: " << partialField_storage[4*i+3] << "\n";
@@ -335,7 +335,7 @@ void calcMagnetization() {
 
     float* storage_s = (float*)storage.data();
 
-    calcMag<<<PARTIAL_SIZE, 1024>>>((float4*)d_spin, (float4*)d_partial, NS);
+    calcMag<<<PARTIAL_SIZE, THREADS>>>((float4*)d_spin, (float4*)d_partial, NS);
     cudaMemcpy((void*)storage_s, (void*)d_partial, sizeof(float) * 4 * PARTIAL_SIZE, cudaMemcpyDeviceToHost);
     
     blaze::DynamicVector<float, blaze::rowVector> mag = blaze::sum<blaze::columnwise>(storage);

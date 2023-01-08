@@ -61,12 +61,12 @@ __global__ void calcMag(
 #define PERS "float"
 
 {
-    __shared__ float4 localSums[1024];
+    __shared__ float4 localSums[THREADS];
 
-    unsigned int tid = getLocalId();
-    unsigned int bid = getGroupId();
-    unsigned int localSize = getLocalSize();
-    unsigned int gid = getGlobalId();
+    int tid = getLocalId();
+    int bid = getGroupId();
+    int localSize = getLocalSize();
+    int gid = getGlobalId();
 
 	if(gid < length) {
 
@@ -81,7 +81,7 @@ __global__ void calcMag(
 	}
 
     // Loop for computing localSums : divide WorkGroup into 2 parts
-    for (unsigned int stride = localSize/2; stride>0; stride /=2)
+    for (int stride = localSize/2; stride>0; stride /=2)
     {
         // Waiting for each 2x2 addition into given workgroup
         __syncthreads();
@@ -121,12 +121,12 @@ __global__ void calcFields(
 )
 
 {
-    __shared__ float4 localSums[1024];
+    __shared__ float4 localSums[THREADS];
 
-    unsigned int tid = getLocalId();
-    unsigned int bid = getGroupId();
-    unsigned int localSize = getLocalSize();
-    unsigned int gid = getGlobalId();
+    const int tid = threadIdx.x;
+    const int bid = blockIdx.x;
+    const int localSize = blockDim.x;
+    const int gid = (blockIdx.x*blockDim.x + threadIdx.x);
 
     //Write the previous
     if(gid == 0) {
@@ -187,7 +187,7 @@ __global__ void calcFields(
 	}
 
     // Loop for computing localSums : divide WorkGroup into 2 parts
-    for (unsigned int stride = localSize/2; stride>0; stride /=2)
+    for (int stride = localSize/2; stride>0; stride /=2)
     {
         // Waiting for each 2x2 addition into given workgroup
         __syncthreads();
