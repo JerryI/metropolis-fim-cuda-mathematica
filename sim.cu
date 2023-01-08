@@ -16,6 +16,7 @@ using blaze::columnMajor;
 #include <limits.h>
 
 #define THREADS 1024
+#define LOOPS   1
 
 std::string dirname;
 int NS;
@@ -319,7 +320,7 @@ void round() {
         nextSpin = samples[k];
 
         n = NS;
-        blocksPerGrid   = std::ceil((1.*n) / THREADS);
+        blocksPerGrid   = std::ceil((1.*n) / THREADS)/LOOPS;
 
         /*
             std::cout << "number: " << n << "\n";

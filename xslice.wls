@@ -37,6 +37,8 @@ height = 300;
 z = 2;
 
 ext = "png";
+comm = StringTake[CreateUUID[],3];
+
 
 fun = x2d;
 
@@ -65,8 +67,16 @@ If[cycle === Last[],
     cycle = (ToExpression/@(StringDrop[#, 6]&/@(FileBaseName/@FileNames["*.bin", dirname<>"/snapshots"])))//Max;
 ];
 
-spino = Partition[Import[dirname<>"/snapshots/cycle_"<>ToString[cycle]<>".bin",  "Real32"],4];
-poso = Partition[Import[dirname<>"/coordinates.bin", "Real32"], 4];
+If[cycle === all,
+    Do[
+        spino = Partition[Import[dirname<>"/snapshots/cycle_"<>ToString[cycle]<>".bin",  "Real32"],4];
+        poso = Partition[Import[dirname<>"/coordinates.bin", "Real32"], 4];
+        Export[dirname<>"/xslice/"<>ToString[fun]<>"-"<>ToString[cycle]<>"-z"<>ToString[z//Round]<>"-"<>ToString[comm]<>"."<>ext, Show[fun[z], ImageSize->width]];
+        
+    , {cycle, (ToExpression/@(StringDrop[#, 6]&/@(FileBaseName/@FileNames["*.bin", dirname<>"/snapshots"])))}]
+,
+    spino = Partition[Import[dirname<>"/snapshots/cycle_"<>ToString[cycle]<>".bin",  "Real32"],4];
+    poso = Partition[Import[dirname<>"/coordinates.bin", "Real32"], 4];
 
-Export[dirname<>"/xslice/"<>ToString[fun]<>"-"<>ToString[cycle]<>"-z"<>ToString[z//Round]<>"-"<>StringTake[CreateUUID[],3]<>"."<>ext, Show[fun[z], ImageSize->width]];
-
+    Export[dirname<>"/xslice/"<>ToString[fun]<>"-"<>ToString[cycle]<>"-z"<>ToString[z//Round]<>"-"<>ToString[comm]<>"."<>ext, Show[fun[z], ImageSize->width]];
+];
