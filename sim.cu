@@ -3,7 +3,7 @@
 #include <blaze/Blaze.h>
 #include <blaze/Forward.h>
 
-
+//nvcc -O2 -Xptxas -O2,-v sim.cu -llapack -lblas -o sim && ./sim tests/15x15x2-dcubic-float-reduceupdateGPUnew 4096 4 0.0444444 0.0 -10.3 -0.444444 1.21 4 0.1 10 300 300 15 20.0 50
 
 #include <chrono>
 #include <random>
@@ -15,7 +15,7 @@ using blaze::columnMajor;
 
 #include <limits.h>
 
-#define THREADS 256
+#define THREADS 1024
 
 std::string dirname;
 int NS;
@@ -274,7 +274,7 @@ inline void calcFe(blaze::DynamicVector<float, blaze::rowVector> total, float4* 
 //blaze::StaticVector<float, 3UL> sv1;
 //blaze::StaticVector<double, 4UL> boltzmanB;
 //float normsv;
-blaze::StaticVector<float, 3UL> tot;
+blaze::StaticVector<float, 4UL> tot;
 
 inline void calcCr(float4* spin) {
     //std::cout << tot[0] << "; " << tot[1] << "; " << tot[2] << "\n";
@@ -313,6 +313,8 @@ void round() {
     cudaMalloc(&tmp, sizeof(T) * blocksPerGrid); 
     checkCUDAError("Error allocating tmp [GPUReduction]");
 
+    float4* buf = new float4[blocksPerGrid];
+
     for (int k=0; k<SAMPLES; ++k) {
         nextSpin = samples[k];
 
@@ -331,19 +333,7 @@ void round() {
 
         //cudaDeviceSynchronize();
 
-        /*
-            float* buf = new float[blocksPerGrid * 4];
-    
-            std::cout << "number: " << n << "\n";
-            cudaMemcpy(buf, tmp, sizeof(T), cudaMemcpyDeviceToHost); checkCUDAError("Error copying result [GPUReduction]");
-
-            std::cout << "******---\n";
-            for(int i=0; i<blocksPerGrid; ++i) {
-                std::cout << buf[i*4] << "; " << buf[i*4 + 1] << "; " << buf[i*4 + 2] << "; " << buf[i*4 + 3] << "; ";
-                std::cout << "\n";
-            }
-        */
-
+        #ifdef many_parts
         do
         {
             blocksPerGrid   = std::ceil((1.*n) / THREADS);
@@ -353,29 +343,30 @@ void round() {
         } while (n > THREADS);
 
         if (n > 1)
-            reduceCUDA<THREADS><<<1, THREADS>>>(tmp, tmp, n);
+            reduceCUDA<THREADS><<<1, THREADS>>>(tmp, tmp, n);  
 
-        /*
-            std::cout << "number: " << n << "\n";
-            cudaMemcpy(buf, tmp, sizeof(T), cudaMemcpyDeviceToHost); checkCUDAError("Error copying result [GPUReduction]");
+        cudaMemcpy(tot.data(), tmp, sizeof(float)*3, cudaMemcpyDeviceToHost);       
+        #endif
 
-            std::cout << "******---\n";
-            for(int i=0; i<blocksPerGrid; ++i) {
-                std::cout << buf[i*4] << "; " << buf[i*4 + 1] << "; " << buf[i*4 + 2] << "; " << buf[i*4 + 3] << "; ";
-                std::cout << "\n";
-            }
-        */
+        //___works faster it we use CPU to calculate the rest of the sum___
 
-        //cudaDeviceSynchronize();
-        //checkCUDAError("Error launching kernel [GPUReduction]");
 
-        cudaMemcpy(tot.data(), tmp, sizeof(float)*3, cudaMemcpyDeviceToHost); 
+        //CPU Total
+        cudaMemcpy(buf, tmp, sizeof(float)*4*n, cudaMemcpyDeviceToHost);
+
+        *((float4*)tot.data()) = buf[0];
+
+        for (int i=1; i<n; ++i) {
+            *((float4*)tot.data()) += buf[i];
+        } 
         //checkCUDAError("Error copying result [GPUReduction]");
     
         calcCr(&newSpin_storage);
         prevSpin = samples[k];
     
     }
+
+    free(buf);
     cudaFree(tmp);
 }
 

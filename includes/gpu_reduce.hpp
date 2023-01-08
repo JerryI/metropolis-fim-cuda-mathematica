@@ -126,15 +126,10 @@ __global__ void reduceCUDAPopulate(
 
         //stiff for the superexchange
         if (distSqr < tresh) {
-            acc.x += s.x * Jxy; 
-            acc.y += s.y * Jxy; 
-            acc.z += s.z * Jxy; 
-            acc.w = 0.0;
+            acc += s * Jxy; 
         }
 
-        sdata[tid].x = sdata[tid].x + acc.x;
-        sdata[tid].y = sdata[tid].y + acc.y;
-        sdata[tid].z = sdata[tid].z + acc.z;
+        sdata[tid] = sdata[tid] + acc;
         i += gridSize; 
     }
     //while (i < n) { sdata[tid] += g_idata[i] + g_idata[i+blockSize]; i += gridSize; }
