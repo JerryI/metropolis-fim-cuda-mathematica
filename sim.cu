@@ -278,11 +278,7 @@ inline void calcFe(blaze::DynamicVector<float, blaze::rowVector> total, float4* 
 blaze::StaticVector<float, 4UL> tot;
 
 inline void calcCr(float4* spin) {
-    //std::cout << tot[0] << "; " << tot[1] << "; " << tot[2] << "\n";
-
     auto normsv = sqrtf(tot[0]*tot[0]+tot[1]*tot[1]+tot[2]*tot[2]);
-
-    //std::cout << normsv << "\n";
 
     blaze::StaticVector<double, 4UL> boltzman = - energiesB * normsv * invTemp;
     boltzman = exp(boltzman);
@@ -354,6 +350,13 @@ void round() {
 
         //CPU Total
         cudaMemcpy(buf, tmp, sizeof(float)*4*n, cudaMemcpyDeviceToHost);
+
+        /*for(int i=0; i<n; ++i) {
+            std::cout << buf[i].x << "; " << buf[i].y << "; "<< buf[i].z << "; ";
+            std::cout << "\n";
+        }
+
+        std::cout << "\n";*/
 
         *((float4*)tot.data()) = buf[0];
 

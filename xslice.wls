@@ -73,7 +73,7 @@ If[cycle === all,
         poso = Partition[Import[dirname<>"/coordinates.bin", "Real32"], 4];
         Export[dirname<>"/xslice/"<>ToString[fun]<>"-"<>ToString[cycle]<>"-z"<>ToString[z//Round]<>"-"<>ToString[comm]<>"."<>ext, Show[fun[z], ImageSize->width]];
         
-    , {cycle, (ToExpression/@(StringDrop[#, 6]&/@(FileBaseName/@FileNames["*.bin", dirname<>"/snapshots"])))}]
+    , {cycle, (ToExpression/@(StringDrop[#, 6]&/@(FileBaseName/@FileNames["*.bin", dirname<>"/snapshots"])))//Sort}]
 ,
     spino = Partition[Import[dirname<>"/snapshots/cycle_"<>ToString[cycle]<>".bin",  "Real32"],4];
     poso = Partition[Import[dirname<>"/coordinates.bin", "Real32"], 4];

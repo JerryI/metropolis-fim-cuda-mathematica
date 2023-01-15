@@ -1,2 +1,4 @@
 /projects/*
 /tests/*
+sim
+results.nvprof
