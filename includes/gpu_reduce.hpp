@@ -1,6 +1,49 @@
 #include <stdio.h>
 #include "../Common/helper_math.h"
 
+#define THREADS 1024
+#define LOOPS   1
+
+#define SAMPLES 1000000
+
+using T = float4;
+
+__global__ int randomChoice(double* dist, size_t n) {
+
+}
+
+template <typename T>
+__global__ void localUpdate(float4 field, T* state, float invTemp) {
+    float normsv = sqrtf(field.x*field.x+field.y*field.y+field.z*field.z);
+
+    double4 boltzman;
+        boltzman.x = - (3.0/2.0) * normsv * invTemp;
+        boltzman.y = - (1.0/2.0) * normsv * invTemp;
+        boltzman.z =   (1.0/2.0) * normsv * invTemp;
+        boltzman.w =   (3.0/2.0) * normsv * invTemp;
+
+        boltzman.x = exp(boltzman.x);
+        boltzman.y = exp(boltzman.y);
+        boltzman.z = exp(boltzman.z);
+        boltzman.w = exp(boltzman.w);
+
+    
+    field = field / normsv;
+
+    float4 energiesB;
+        energiesB.x =  3.0/2.0;
+        energiesB.y =  1.0/2.0;
+        energiesB.z = -1.0/2.0;
+        energiesB.w = -3.0/2.0;
+
+    normsv = ((float*)energiesB)[randomChoice((double*)boltzman, 4)];
+
+    field = field * normsv;
+
+    state->x = field.x;  
+    state->y = field.y;
+    state->z = field.z; 
+}
 
 void checkCUDAError(const char *msg)
 {
@@ -53,8 +96,6 @@ __global__ void reduceCUDAPopulate(
     T*          states, 
     const T*    positions,
 
-    const T     newState,
-
     const float Jxx,
     const float Jyy,
     const float Jxy,
@@ -64,7 +105,6 @@ __global__ void reduceCUDAPopulate(
     T* g_odata, 
     
     const size_t next,
-    const size_t prev,
     size_t n
 )
 {
@@ -77,11 +117,6 @@ __global__ void reduceCUDAPopulate(
     size_t i = blockIdx.x*(blockSize) + tid;
     size_t gridSize = blockSize*gridDim.x;
     sdata[tid] = {0.,0.,0.,0.};
-
-    //TO-DO: concurecncy error!!!
-    if (i == 0) {
-        states[prev] = newState;
-    }
 
     //TO-DO: concurecncy error!!!
     //if (tid == 0) {
@@ -142,6 +177,50 @@ __global__ void reduceCUDAPopulate(
 
     if (tid < 32) warpReduce<blockSize>(sdata, tid);
     if (tid == 0) g_odata[blockIdx.x] = sdata[0];
+}
+
+template<typename T>
+__global__ void master(
+    T*          states, 
+    const T*    positions,
+    T* TMP, 
+
+    const float Jxx,
+    const float Jyy,
+    const float Jxy,
+    const float DIP,
+    const float TRESH,
+
+    const float INVTemp,
+
+    size_t Total,
+    int* Samples
+)
+{
+    int blocksPerGrid;
+    int n;
+    int nextSpin = 0;
+    int prevSpin = 0;
+    float4 accumulator;
+
+    for (int k=0; k<SAMPLES; ++k) {
+        nextSpin = Samples[k];
+
+        n = Total;
+        blocksPerGrid   = std::ceil((1.*n) / THREADS)/LOOPS;
+
+        reduceCUDAPopulate<THREADS><<<blocksPerGrid, THREADS>>>(states, positions, Jxx, Jyy, Jxy, DIP, TRESH, TMP, nextSpin, n);
+        n = blocksPerGrid;
+
+        accumulator = tmp[0];
+        for (int i=1; i<n; ++i) {
+            accumulator += temp[i];
+        }        
+
+        localUpdate(accumulator, &states[prevSpin], INVTemp);
+
+        prevSpin = Samples[k];
+    }
 }
 
 

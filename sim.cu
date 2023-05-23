@@ -145,7 +145,8 @@ int randomChoice(double *choice_weight, int num_choices) {
     std::exit(-1);
 }
 
-float4* d_spin, *d_pos, *d_partial;
+T *d_spin, *d_pos, *d_partial;
+int *d_samples;
 
 float temperature; 
 int nextSpin = 1;
@@ -156,9 +157,12 @@ void CUDAinit() {
     cudaMalloc((void**)&d_spin,    NS*STATE_SIZE*sizeof(float));
     cudaMalloc((void**)&d_pos,     NS*PROP_SIZE*sizeof(float));
     cudaMalloc((void**)&d_partial, 4*PARTIAL_SIZE*sizeof(float));
+    cudaMalloc((void**)&d_samples, SAMPLES*sizeof(int));
 
     cudaMemcpy((void*)d_spin, (void*)spino, sizeof(float) * NS * STATE_SIZE, cudaMemcpyHostToDevice);
     cudaMemcpy((void*)d_pos, (void*)poso, sizeof(float) * NS * PROP_SIZE, cudaMemcpyHostToDevice);
+    
+    
     cudaDeviceSynchronize();
 }
 
@@ -275,24 +279,7 @@ inline void calcFe(blaze::DynamicVector<float, blaze::rowVector> total, float4* 
 //blaze::StaticVector<float, 3UL> sv1;
 //blaze::StaticVector<double, 4UL> boltzmanB;
 //float normsv;
-blaze::StaticVector<float, 4UL> tot;
 
-inline void calcCr(float4* spin) {
-    auto normsv = sqrtf(tot[0]*tot[0]+tot[1]*tot[1]+tot[2]*tot[2]);
-
-    blaze::StaticVector<double, 4UL> boltzman = - energiesB * normsv * invTemp;
-    boltzman = exp(boltzman);
-
-    tot = tot / normsv;
-
-    normsv = energiesB[randomChoice((double*)boltzman.data(), 4)];
-
-    tot = tot * normsv;
-
-    spin->x = tot[0];
-    spin->y = tot[1];
-    spin->z = tot[2];    
-}
 
 void round() {
     float4 newSpin_storage;
@@ -308,69 +295,14 @@ void round() {
     T* from;
 
     cudaMalloc(&tmp, sizeof(T) * blocksPerGrid); 
+    
     checkCUDAError("Error allocating tmp [GPUReduction]");
 
-    float4* buf = new float4[blocksPerGrid];
 
-    for (int k=0; k<SAMPLES; ++k) {
-        nextSpin = samples[k];
+    master<><<<1, 1>>>(d_spin, d_pos, tmp, jxx, jyy, jxy, dip, tresh, invTemp, n, samples);
+    cudaDeviceSynchronize();
 
-        n = NS;
-        blocksPerGrid   = std::ceil((1.*n) / THREADS)/LOOPS;
-
-        /*
-            std::cout << "number: " << n << "\n";
-            std::cout << "blokcs: " << blocksPerGrid << "\n";
-        */
-
-
-        reduceCUDAPopulate<THREADS><<<blocksPerGrid, THREADS>>>(d_spin, d_pos, newSpin_storage, jxx, jyy, jxy, dip, tresh, tmp, nextSpin, prevSpin, n);
-        from = tmp;
-        n = blocksPerGrid;
-
-        //cudaDeviceSynchronize();
-
-        #ifdef many_parts
-        do
-        {
-            blocksPerGrid   = std::ceil((1.*n) / THREADS);
-            reduceCUDA<THREADS><<<blocksPerGrid, THREADS>>>(from, tmp, n);
-            from = tmp;
-            n = blocksPerGrid;
-        } while (n > THREADS);
-
-        if (n > 1)
-            reduceCUDA<THREADS><<<1, THREADS>>>(tmp, tmp, n);  
-
-        cudaMemcpy(tot.data(), tmp, sizeof(float)*3, cudaMemcpyDeviceToHost);       
-        #endif
-
-        //___works faster it we use CPU to calculate the rest of the sum___
-
-
-        //CPU Total
-        cudaMemcpy(buf, tmp, sizeof(float)*4*n, cudaMemcpyDeviceToHost);
-
-        /*for(int i=0; i<n; ++i) {
-            std::cout << buf[i].x << "; " << buf[i].y << "; "<< buf[i].z << "; ";
-            std::cout << "\n";
-        }
-
-        std::cout << "\n";*/
-
-        *((float4*)tot.data()) = buf[0];
-
-        for (int i=1; i<n; ++i) {
-            *((float4*)tot.data()) += buf[i];
-        } 
-        //checkCUDAError("Error copying result [GPUReduction]");
-    
-        calcCr(&newSpin_storage);
-        prevSpin = samples[k];
-    
-    }
-
-    free(buf);
+;
     cudaFree(tmp);
 }
 
@@ -415,7 +347,8 @@ void endless() {
         std::chrono::steady_clock::time_point time = std::chrono::steady_clock::now();
 
         for (int i=0; i<SAMPLES; ++i) samples[i] = random_sampler(rng);
-
+        cudaMemcpy((void*)d_samples, (void*)samples, sizeof(int) * SAMPLES, cudaMemcpyHostToDevice);
+        
         round();
 
         std::chrono::steady_clock::time_point endtime = std::chrono::steady_clock::now();
